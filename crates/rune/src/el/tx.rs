@@ -381,7 +381,8 @@ impl Tx {
         self.wakes.push(std::time::Duration::from_secs_f64((due - self.clock).max(0.0)));
     }
 
-    /// Close the window after this handler, as the close button would (`App::on_close` runs).
+    /// Close the window after this handler, as the close button would (`App::on_close` runs),
+    /// without asking `App::on_close_request`: the app decided.
     pub fn close_window(&mut self) {
         self.shell = self.shell.max(Some(Shell::Close));
     }

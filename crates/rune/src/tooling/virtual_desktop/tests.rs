@@ -101,6 +101,7 @@ impl Member for Fake {
     fn reopen_candidate(&self) -> crate::platform::reopen::Candidate { unimplemented!() }
     fn reopen_hook(&mut self, _: bool) -> bool { false }
     fn reopen(&mut self) -> Changes { Changes::default() }
+    fn close_request(&mut self) {}
     fn menu(&self, _: &str) -> Result<(), crate::MenuError> { Ok(()) }
     fn popup_open(&self) -> bool { false }
     fn resolve_popup(&mut self, _: Option<&str>) -> Result<(), crate::PopupMenuError> { Ok(()) }
@@ -344,3 +345,62 @@ fn virtual_desktop_reports_frames_to_on_frame_encoded() {
     }
 }
 
+/// A window whose `on_close_request` answers from its state (`ask`), counting the asks and the
+/// `on_close` runs.
+#[derive(Default)]
+struct Asked { ask: bool, asks: u32, closes: u32 }
+
+fn asking_window() -> Window {
+    use crate::{App, AppSpec, El, Tx, WindowSpec, el};
+    fn ask(s: &mut Asked, _: &mut Tx) -> bool { s.asks += 1; !s.ask }
+    fn close(s: &mut Asked, _: &mut Tx) { s.closes += 1; }
+    let app = App::new(AppSpec::new("W", (100.0, 100.0), Asked::default, |_: &Asked, _: &mut crate::Cx<Asked>| -> El { el() }))
+        .on_close_request(ask)
+        .on_close(close);
+    Window::new(WindowSpec::from_app("w", app), None, &Args::default(), true, true, 1.0)
+}
+
+/// Kept open: the window shows on, `on_close` doesn't run, and the handler's change stands.
+#[test]
+fn a_close_request_answered_false_keeps_the_window() {
+    let mut w = asking_window();
+    w.rt_mut::<Asked>().state.ask = true;
+    w.close_request();
+    w.drain(&VirtualDesktop::from_script(None, 2.0).unwrap(), 0.0);
+    assert_eq!({ let s = &w.rt_mut::<Asked>().state; (s.asks, s.closes) }, (1, 0));
+    assert!(w.visible());
+}
+
+#[test]
+fn a_close_request_answered_true_closes_as_before() {
+    let mut w = asking_window();
+    w.close_request();
+    w.drain(&VirtualDesktop::from_script(None, 2.0).unwrap(), 0.0);
+    assert_eq!({ let s = &w.rt_mut::<Asked>().state; (s.asks, s.closes) }, (1, 1));
+    assert!(!w.visible());
+}
+
+/// The app closing the window itself, after it asked, doesn't ask again.
+#[test]
+fn closing_from_the_app_after_a_kept_close_asks_nothing() {
+    let mut w = asking_window();
+    let desktop = VirtualDesktop::from_script(None, 2.0).unwrap();
+    w.rt_mut::<Asked>().state.ask = true;
+    w.close_request();
+    w.rt_mut::<Asked>().update(|_, tx| tx.close_window());
+    w.drain(&desktop, 0.0);
+    assert_eq!({ let s = &w.rt_mut::<Asked>().state; (s.asks, s.closes) }, (1, 1));
+    assert!(!w.visible());
+}
+
+/// Without `on_close_request` a close request closes, as it always did.
+#[test]
+fn a_close_request_without_the_hook_closes() {
+    use crate::{App, AppSpec, El, WindowSpec, el};
+    let app = App::new(AppSpec::new("W", (100.0, 100.0), || 0u32, |_: &u32, _: &mut crate::Cx<u32>| -> El { el() }))
+        .on_close(|closes, _| *closes += 1);
+    let mut w = Window::new(WindowSpec::from_app("w", app), None, &Args::default(), true, true, 1.0);
+    w.close_request();
+    assert_eq!(w.rt_mut::<u32>().state, 1);
+    assert!(!w.visible());
+}

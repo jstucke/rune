@@ -360,6 +360,22 @@ impl Host {
         }
     }
 
+    /// The user asked to close the window (`WindowEvent::CloseRequested`): `App::on_close_request`
+    /// answers first, as an update, so a prompt it opens draws while the window stays.
+    pub(in crate::window) fn close_requested(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.closes() || event_loop.exiting() { return self.close(event_loop); }
+        let Some(close) = self.app.queue_on_close_request() else { return self.close(event_loop) };
+        self.drain(event_loop, false);
+        self.publish();
+        // The handler may have closed or quit through its `Tx` already.
+        if !close.load(Ordering::Relaxed) || !self.closes() || event_loop.exiting() {
+            // Kept open: a later close may not be the last window's (`Windows::window_event`).
+            self.ends_app = false;
+            return;
+        }
+        self.close(event_loop);
+    }
+
     pub(in crate::window) fn close(&mut self, event_loop: &ActiveEventLoop) {
         self.app.rt_mut().minimize_step(MinimizeEvent::Lost);
         if let Some(w) = &mut self.win {

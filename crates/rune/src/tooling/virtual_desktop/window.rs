@@ -68,6 +68,8 @@ pub(crate) trait Member {
     fn reopen_hook(&mut self, has_visible_windows: bool) -> bool;
     /// Shows it in front with the keyboard, as the default reopen.
     fn reopen(&mut self) -> Changes;
+    /// The user asked to close it (`{"close": true}`), as its close button does.
+    fn close_request(&mut self);
     fn menu(&self, item: &str) -> Result<(), crate::MenuError>;
     fn popup_open(&self) -> bool;
     fn resolve_popup(&mut self, picked: Option<&str>) -> Result<(), crate::PopupMenuError>;
@@ -99,6 +101,8 @@ trait DesktopApp {
     fn rt_mut(&mut self) -> &mut RuntimeCore;
     fn with_driver(&mut self, f: &mut dyn FnMut(&mut RuntimeCore, &mut dyn AppDriver));
     fn run_on_close(&mut self);
+    /// Runs `App::on_close_request`; true when the window may close (also without a hook).
+    fn run_on_close_request(&mut self) -> bool;
     fn run_on_reopen(&mut self, has_visible_windows: bool) -> bool;
     fn drain_updates(&mut self, menus: &mut crate::native_menu::MenuGuard) -> WindowRequests;
     fn has_updates(&self) -> bool;
@@ -140,6 +144,7 @@ struct TypedDesktopApp<S: 'static> {
     shared: Arc<Shared<S>>,
     comp: Option<Box<dyn Compositor<S>>>,
     on_close: Option<fn(&mut S, &mut crate::Tx)>,
+    on_close_request: Option<fn(&mut S, &mut crate::Tx) -> bool>,
     on_reopen: Option<fn(&mut S, bool, &mut crate::Tx) -> bool>,
 }
 
@@ -152,6 +157,12 @@ impl<S: 'static> DesktopApp for TypedDesktopApp<S> {
     }
     fn run_on_close(&mut self) {
         if let Some(f) = self.on_close { self.rt.update(f); }
+    }
+    fn run_on_close_request(&mut self) -> bool {
+        let Some(f) = self.on_close_request else { return true };
+        let mut close = false;
+        self.rt.update(|s, tx| close = f(s, tx));
+        close
     }
     fn run_on_reopen(&mut self, has_visible_windows: bool) -> bool {
         let Some(f) = self.on_reopen else { return false };
@@ -268,6 +279,7 @@ impl Window {
         let (open, keep_running, fit_height, on_close, on_reopen) = (
             app.open, app.keep_running, app.fit_content_height, app.on_close, app.on_reopen,
         );
+        let on_close_request = app.on_close_request;
         let native = std::mem::take(&mut app.macos_window);
         let (chrome, titlebar) = (app.chrome, app.titlebar);
         let (playground, attach_playground) = (app.playground.take(), app.attach_playground);
@@ -283,7 +295,7 @@ impl Window {
         }
         rt.configure(runtime);
         let (shared_core, shortcuts_core) = (shared.core.clone(), shared.shortcuts.core.clone());
-        let typed = Box::new(TypedDesktopApp { rt, shared, comp, on_close, on_reopen });
+        let typed = Box::new(TypedDesktopApp { rt, shared, comp, on_close, on_close_request, on_reopen });
         Self::from_app(typed, WindowInit {
             key,
             shared_core,
@@ -601,6 +613,13 @@ impl Member for Window {
         let mut changes = Changes::default();
         self.request(WindowRequest::Open(None), &mut changes);
         changes
+    }
+
+    /// As the native host's `close_requested`: `App::on_close_request` answers first. What its
+    /// `Tx` asked applies on the next drain.
+    fn close_request(&mut self) {
+        if self.life.closes(self.keep_running, true) && !self.app.run_on_close_request() { return; }
+        self.close();
     }
     fn menu(&self, item: &str) -> Result<(), crate::MenuError> { self.menus.fire(item) }
     fn popup_open(&self) -> bool { self.app.rt().popup_menu().is_some() }

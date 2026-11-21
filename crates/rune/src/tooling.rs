@@ -357,6 +357,8 @@ pub(crate) enum Kind {
     Focus(bool),
     /// The app reopened (macOS: its Dock icon clicked).
     Reopen,
+    /// The user asked to close the key window (its close button).
+    Close,
     /// A link the system opened with the app (`App::on_open_url`).
     OpenUrl(String),
     Menu(String),
@@ -448,7 +450,7 @@ pub(crate) fn script_input(
         Kind::ButtonUp(b) => core.button_up(app, x, y, *b),
         Kind::KeyUp(k) => { core.key_up(app, k.clone()); }
         Kind::PhysicalKey(event, k, base) => core.physical_key_input(app, *event, k.clone(), *base),
-        Kind::Mark(_) | Kind::Reopen | Kind::OpenUrl(_) | Kind::Menu(_) | Kind::PopupMenu(_)
+        Kind::Mark(_) | Kind::Reopen | Kind::Close | Kind::OpenUrl(_) | Kind::Menu(_) | Kind::PopupMenu(_)
         | Kind::FileDialog(_) | Kind::Shortcut(_) | Kind::Resize(..) => return false,
     }
     true
@@ -542,6 +544,7 @@ impl Ev {
             Kind::Mark(name) => ScriptEvent::Mark(name.clone()),
             Kind::Focus(focused) => ScriptEvent::Focus(*focused),
             Kind::Reopen => ScriptEvent::Reopen,
+            Kind::Close => ScriptEvent::Close,
             Kind::OpenUrl(url) => ScriptEvent::OpenUrl(url.clone()),
             Kind::Menu(item) => ScriptEvent::Menu(item.clone()),
             Kind::PopupMenu(picked) => ScriptEvent::PopupMenu(picked.clone()),

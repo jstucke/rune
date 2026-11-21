@@ -567,6 +567,7 @@ let app = rune::App::new(spec)
     .release_gpu_when_closed()     // optional: drop the GPU device while closed
     .accessory()                   // macOS: menu-bar app, no Dock icon (h.set_dock_icon(true) shows it)
     .standard_menus()              // macOS: Edit, Minimize ⌘M and Close ⌘W (no Quit); regular apps get them anyway
+    .on_close_request(|s, tx| true) // close button: false keeps the window (ask "Save changes?")
     .on_close(|s, tx| ..)          // runs before every close; tx.quit() quits instead
     .on_reopen(|s, has_visible, tx| false); // macOS: Dock icon clicked; true skips the default
     // .window_options(WindowOptions { max_size, resizable, .. }) for this window
@@ -591,6 +592,12 @@ app.run();
   input as usual, but not its view or layout, and draws nothing. The frame that shows it again
   builds once with the latest state, with motion already landed where it would have ended. A
   window any part of which shows draws as usual. Headless runs always see a current tree.
+- `App::on_close_request` runs when the user asks to close the window (its close button or the
+  window manager's close), before anything hides: returning false keeps it shown, and what the
+  handler changed draws, so it can ask "Save changes?" first. `Tx::close_window()`,
+  `AppHandle::close()`, quitting and macOS Quit close without asking, so a confirmed close goes
+  through at once. Rune's drawn caption buttons and macOS standard menus close as
+  `Tx::close_window()` does. Scripts ask with `{"close": true}`.
 - Handlers ask the shell with `Tx::close_window()`, `Tx::minimize()` and `Tx::quit()` (quit wins,
   and either wins over minimize). Minimize does nothing for a hidden window, a panel, a launcher,
   an overlay, a borderless window or a window that can't minimize (debug builds say so).
@@ -2547,6 +2554,8 @@ $L --desktop examples/launcher/backdrop.png --script examples/launcher/scripts/d
   `gap`, default 0.15 s between presses) and `drag` (`dx`, `dy`, `dur`) events, at `x,y` in points or at an element by `key` (or a path of keys such as `slider/knob`, where elements without keys
   between them don't count).
   `{"reopen": true}` reopens the app, as a click on its Dock icon (see "App lifetime").
+  `{"close": true}` asks to close the key window, as its close button does
+  (`App::on_close_request`); without `--desktop` the hook runs and the window stays.
   `{"open_url": "myapp://…"}` hands `App::on_open_url` a link, as the system does when a link
   opens the app.
   `menu-pick` (with an `id`) and `menu-cancel` answer an open pop-up menu, `file-dialog` (with

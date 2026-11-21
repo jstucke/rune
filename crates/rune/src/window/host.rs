@@ -235,6 +235,7 @@ impl Host {
         );
         let (open_inactive, open_as, chrome, titlebar) = (app.open_inactive, app.open_as, app.chrome, app.titlebar);
         let (on_close, on_rest, on_reopen, on_quit, turn_scope) = (app.on_close, app.on_rest, app.on_reopen, app.on_quit, app.turn_scope);
+        let on_close_request = app.on_close_request;
         let comp = app.compositor.take();
         let (playground, attach_playground) = (app.playground.take(), app.attach_playground);
         let (spec, state, shared, runtime) = app.into_parts(args.scene.as_deref());
@@ -250,7 +251,7 @@ impl Host {
         let shared_core = shared.core.clone();
         let geometry = WindowGeometry { title: spec.title, size: spec.size, min_size: spec.min_size };
         let typed = Box::new(TypedWindowApp {
-            rt, shared, comp, on_frame_drawn, on_close, on_rest, on_quit, on_reopen, turn_scope,
+            rt, shared, comp, on_frame_drawn, on_close, on_rest, on_quit, on_reopen, on_close_request, turn_scope,
         });
         Self::from_app(typed, HostInit {
             prepared,

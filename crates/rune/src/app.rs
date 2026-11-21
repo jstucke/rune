@@ -64,6 +64,7 @@ pub struct App<S: 'static> {
     pub(crate) standard_menus: bool,
     pub(crate) keep_running: bool,
     pub(crate) on_close: Option<fn(&mut S, &mut Tx)>,
+    pub(crate) on_close_request: Option<fn(&mut S, &mut Tx) -> bool>,
     pub(crate) on_quit: Option<fn(&mut S, &mut Tx)>,
     pub(crate) turn_scope: Option<TurnScope<S>>,
     pub(crate) on_rest: Option<fn(&mut S, &mut Tx) -> bool>,
@@ -119,6 +120,7 @@ impl<S: 'static> App<S> {
             standard_menus: false,
             keep_running: false,
             on_close: None,
+            on_close_request: None,
             on_quit: None,
             turn_scope: None,
             on_rest: None,
@@ -428,6 +430,18 @@ impl<S: 'static> App<S> {
     /// Its `Tx::quit` quits.
     pub fn on_close(mut self, f: fn(&mut S, &mut Tx)) -> Self {
         self.on_close = Some(f);
+        self
+    }
+
+    /// Runs when the user asks to close the window (its close button, or the window manager's
+    /// close), before it hides or `on_close` runs: true closes it as before; false keeps it
+    /// shown, and what the handler changed draws as an update's changes do, so it can ask
+    /// "Save changes?" first. Closing later with `Tx::close_window` or `AppHandle::close`
+    /// doesn't ask again, nor do `Tx::quit`, `AppHandle::quit` and macOS Quit. Rune's own
+    /// caption buttons and macOS standard menus close as `Tx::close_window` does. Native windows
+    /// and `--desktop` scripts (`{"close": true}`).
+    pub fn on_close_request(mut self, f: fn(&mut S, &mut Tx) -> bool) -> Self {
+        self.on_close_request = Some(f);
         self
     }
 

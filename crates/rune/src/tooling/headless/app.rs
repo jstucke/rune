@@ -27,6 +27,7 @@ pub(super) trait HeadlessApp {
     fn rt_mut(&mut self) -> &mut RuntimeCore;
     fn with_driver(&mut self, f: &mut dyn FnMut(&mut RuntimeCore, &mut dyn AppDriver));
     fn run_reopen(&mut self);
+    fn run_close_request(&mut self);
     fn run_open_url(&mut self, url: &str);
     fn drain_updates(&mut self, menus: &mut crate::native_menu::MenuGuard);
     fn has_compositor(&self) -> bool;
@@ -64,6 +65,7 @@ pub(super) struct TypedHeadlessApp<S: 'static> {
     pub(super) shared: Arc<Shared<S>>,
     pub(super) comp: Option<Box<dyn Compositor<S>>>,
     pub(super) on_reopen: Option<fn(&mut S, bool, &mut Tx) -> bool>,
+    pub(super) on_close_request: Option<fn(&mut S, &mut Tx) -> bool>,
     pub(super) on_open_url: Option<crate::open_url::incoming::OnOpenUrl<S>>,
 }
 
@@ -76,6 +78,9 @@ impl<S: 'static> HeadlessApp for TypedHeadlessApp<S> {
     }
     fn run_reopen(&mut self) {
         if let Some(f) = self.on_reopen { self.rt.update(|s, tx| { f(s, true, tx); }); }
+    }
+    fn run_close_request(&mut self) {
+        if let Some(f) = self.on_close_request { self.rt.update(|s, tx| { f(s, tx); }); }
     }
     fn run_open_url(&mut self, url: &str) {
         if let Some(f) = self.on_open_url { self.rt.update(|s, tx| f(s, url, tx)); }

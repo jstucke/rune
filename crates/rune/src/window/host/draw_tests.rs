@@ -87,6 +87,7 @@ impl MockWindowFrame {
             on_rest: None,
             on_quit: None,
             on_reopen: None,
+            on_close_request: None,
             turn_scope: None,
         };
         let reports = FrameReports::new(
@@ -296,6 +297,7 @@ fn cursor_moved_skips_redraw_within_same_hovered_row_and_keeps_quiet_timer_and_l
         on_rest: None,
         on_quit: None,
         on_reopen: None,
+        on_close_request: None,
         turn_scope: None,
     };
     let mut timer = TimerFrame::default();

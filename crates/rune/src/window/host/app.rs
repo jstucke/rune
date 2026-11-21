@@ -40,6 +40,8 @@ pub(in crate::window) trait WindowApp {
     fn run_on_quit(&mut self) -> bool;
     fn run_on_rest(&mut self);
     fn queue_on_reopen(&mut self, has_visible_windows: bool) -> Option<Arc<AtomicBool>>;
+    /// Queues `App::on_close_request` as an update; its answer (true: close) once drained.
+    fn queue_on_close_request(&mut self) -> Option<Arc<AtomicBool>>;
     fn drain_startup(&mut self, shortcuts: &crate::shortcuts::Guard, menus: &mut crate::native_menu::MenuGuard);
     fn drain_window(&mut self, shortcuts: &crate::shortcuts::Guard, menus: &mut crate::native_menu::MenuGuard) -> (WindowRequests, bool, bool);
     fn has_updates(&self) -> bool;
@@ -185,6 +187,8 @@ pub(super) struct TypedWindowApp<S: 'static> {
     pub(super) on_rest: Option<fn(&mut S, &mut Tx) -> bool>,
     pub(super) on_quit: Option<fn(&mut S, &mut Tx)>,
     pub(super) on_reopen: Option<fn(&mut S, bool, &mut Tx) -> bool>,
+    /// `App::on_close_request`.
+    pub(super) on_close_request: Option<fn(&mut S, &mut Tx) -> bool>,
     pub(super) turn_scope: Option<TurnScope<S>>,
 }
 
@@ -237,6 +241,17 @@ impl<S: 'static> WindowApp for TypedWindowApp<S> {
             true
         }));
         Some(handled)
+    }
+
+    fn queue_on_close_request(&mut self) -> Option<Arc<AtomicBool>> {
+        let f = self.on_close_request?;
+        let close = Arc::new(AtomicBool::new(false));
+        let answer = close.clone();
+        self.shared.queue_update(Box::new(move |s, tx| {
+            answer.store(f(s, tx), Ordering::Relaxed);
+            true
+        }));
+        Some(close)
     }
 
     fn drain_startup(&mut self, shortcuts: &crate::shortcuts::Guard, menus: &mut crate::native_menu::MenuGuard) {
