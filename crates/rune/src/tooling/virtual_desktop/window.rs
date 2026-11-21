@@ -62,6 +62,8 @@ pub(crate) trait Member {
     fn reopen_hook(&mut self, has_visible_windows: bool) -> bool;
     /// Shows it in front with the keyboard, as the default reopen.
     fn reopen(&mut self) -> Changes;
+    /// The user asked to close it (`{"close": true}`), as its close button does.
+    fn close_request(&mut self);
     fn menu(&self, item: &str) -> Result<(), crate::MenuError>;
     fn popup_open(&self) -> bool;
     fn resolve_popup(&mut self, picked: Option<&str>) -> Result<(), crate::PopupMenuError>;
@@ -85,6 +87,7 @@ pub(crate) struct Window<S: 'static> {
     comp: Option<Box<dyn crate::compose::Compositor<S>>>,
     renderer: Option<Renderer>,
     on_close: Option<fn(&mut S, &mut crate::Tx)>,
+    on_close_request: Option<fn(&mut S, &mut crate::Tx) -> bool>,
     on_reopen: Option<fn(&mut S, bool, &mut crate::Tx) -> bool>,
     keep_running: bool,
     launcher: bool,
@@ -115,7 +118,7 @@ impl<S: 'static> Window<S> {
         let comp = app.compositor.take();
         let (open, keep_running, on_close, on_focus, on_reopen) = (app.open, app.keep_running, app.on_close, app.on_focus, app.on_reopen);
         let (on_mods, on_visibility) = (app.on_mods, app.on_visibility);
-        let on_ime = app.on_ime;
+        let (on_ime, on_close_request) = (app.on_ime, app.on_close_request);
         let native = std::mem::take(&mut app.macos_window);
         let (modifier_keys, tab_visits_controls, srgb_blend) = (app.modifier_keys, app.tab_visits_controls, app.srgb_blend);
         let font_smoothing = app.font_smoothing;
@@ -146,7 +149,7 @@ impl<S: 'static> Window<S> {
         shared.visible.store(visible, Ordering::Release);
         let decorated = !options.borderless && !options.transparent;
         Window {
-            key, rt, shared, shortcuts, menus, handle, comp, renderer: None, on_close, on_reopen, keep_running,
+            key, rt, shared, shortcuts, menus, handle, comp, renderer: None, on_close, on_close_request, on_reopen, keep_running,
             launcher: native.launcher,
             panel: native.nonactivating_panel,
             main,
@@ -330,7 +333,7 @@ impl<S: 'static> Member for Window<S> {
             Kind::Wheel(dx, dy) => crate::tooling::wheel(rt, (x, y), *dx, *dy),
             Kind::Fling(vx, vy) => crate::tooling::fling(rt, (x, y), *vx, *vy),
             Kind::Files(step) => crate::tooling::file_input(rt, step, (x, y)),
-            Kind::Mark(_) | Kind::Reopen | Kind::OpenUrl(_) | Kind::Menu(_) | Kind::PopupMenu(_) | Kind::FileDialog(_) | Kind::Shortcut(_) => {}
+            Kind::Mark(_) | Kind::Reopen | Kind::Close | Kind::OpenUrl(_) | Kind::Menu(_) | Kind::PopupMenu(_) | Kind::FileDialog(_) | Kind::Shortcut(_) => {}
             kind => { crate::tooling::canvas_input(rt, kind, (x, y)); }
         }
     }
@@ -362,6 +365,17 @@ impl<S: 'static> Member for Window<S> {
         let mut changes = Changes::default();
         self.request(WindowRequest::Open(None), &mut changes);
         changes
+    }
+
+    /// As the native host's `close_requested`: `App::on_close_request` answers first. What its
+    /// `Tx` asked applies on the next drain.
+    fn close_request(&mut self) {
+        if let Some(f) = self.on_close_request.filter(|_| self.life.closes(self.keep_running, true)) {
+            let mut close = false;
+            self.rt.update(|s, tx| close = f(s, tx));
+            if !close { return; }
+        }
+        self.close();
     }
     fn menu(&self, item: &str) -> Result<(), crate::MenuError> { crate::native_menu::fire(&self.shared, item) }
     fn popup_open(&self) -> bool { self.rt.popup_menu().is_some() }

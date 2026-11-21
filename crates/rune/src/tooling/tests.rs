@@ -976,3 +976,24 @@ fn a_trace_says_how_far_scrolling_carries_an_element_when_that_changes() {
     assert_eq!(lines[2]["sc"], json!([[row, 0.0, 30.0]]));
     assert!(lines[3].get("sc").is_none(), "only when it changes");
 }
+
+/// `{"close": true}` asks the key window's `on_close_request`, as its close button does: `a`
+/// keeps the first close and lets the second through.
+#[test]
+fn desktop_close_asks_the_key_window_first() {
+    let _turn = HEADLESS.lock().unwrap_or_else(|e| e.into_inner());
+    static ASKED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    ASKED.store(0, std::sync::atomic::Ordering::Relaxed);
+    fn second(_: &mut Pair, _: &mut crate::Tx) -> bool { ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) > 0 }
+    let script = r#"[{"t": 0.1, "close": true}, {"t": 0.2, "close": true}]"#;
+    let run = reopen_case(script, false, || {
+        let spec = AppSpec::new("asks", (1.0, 1.0), || Pair { name: "a", color: RED, other: None, act: |_, _| {} },
+            |p, _| crate::el().w_full().h_full().fill(p.color));
+        let app = crate::App::new(spec).keep_running().on_close_request(second);
+        vec![crate::WindowSpec::from_app("a", app).configured_options(left().macos(Default::default())).boxed()]
+    });
+    assert_eq!(focus_of(run, 0.1, "a"), (true, true), "kept open");
+    assert_eq!(focus_of(run, 0.2, "a"), (false, false), "closed");
+    assert_eq!(ASKED.load(std::sync::atomic::Ordering::Relaxed), 2);
+    assert!(run.events().iter().any(|e| matches!(e.event, ScriptEvent::Close)));
+}

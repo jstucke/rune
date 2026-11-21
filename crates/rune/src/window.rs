@@ -488,6 +488,8 @@ struct Host<S: 'static> {
     /// Its close ends the app (`Windows::window_event`): the last window of a fast-exiting app.
     ends_app: bool,
     on_close: Option<fn(&mut S, &mut Tx)>,
+    /// `App::on_close_request`.
+    on_close_request: Option<fn(&mut S, &mut Tx) -> bool>,
     /// `App::on_rest`.
     on_rest: Option<fn(&mut S, &mut Tx) -> bool>,
     on_quit: Option<fn(&mut S, &mut Tx)>,
@@ -565,7 +567,7 @@ impl<S: 'static> Host<S> {
             let _ = proxy.send_event(WakeEvent::App(slot));
         });
         let (open, keep_running, on_close, release_gpu) = (app.open, app.keep_running, app.on_close, app.release_gpu);
-        let on_rest = app.on_rest;
+        let (on_rest, on_close_request) = (app.on_rest, app.on_close_request);
         let (on_reopen, on_quit, turn_scope) = (app.on_reopen, app.on_quit, app.turn_scope);
         #[cfg(target_os = "macos")]
         let present_log = args.trace.as_ref().map(|_| Arc::default());
@@ -653,6 +655,7 @@ impl<S: 'static> Host<S> {
             chores: Default::default(),
             ends_app: false,
             on_close,
+            on_close_request,
             on_rest,
             on_quit,
             turn_scope,

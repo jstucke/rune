@@ -335,6 +335,8 @@ pub(crate) enum Kind {
     Focus(bool),
     /// The app reopened (macOS: its Dock icon clicked).
     Reopen,
+    /// The user asked to close the key window (its close button).
+    Close,
     /// A link the system opened with the app (`App::on_open_url`).
     OpenUrl(String),
     Menu(String),
@@ -450,6 +452,7 @@ impl Ev {
             Kind::Mark(name) => ScriptEvent::Mark(name.clone()),
             Kind::Focus(focused) => ScriptEvent::Focus(*focused),
             Kind::Reopen => ScriptEvent::Reopen,
+            Kind::Close => ScriptEvent::Close,
             Kind::OpenUrl(url) => ScriptEvent::OpenUrl(url.clone()),
             Kind::Menu(item) => ScriptEvent::Menu(item.clone()),
             Kind::PopupMenu(picked) => ScriptEvent::PopupMenu(picked.clone()),

@@ -296,6 +296,14 @@ impl Desk {
         }
     }
 
+    /// The user asked to close the key window (or `fallback` without one), as its close
+    /// button does.
+    fn close_request(&mut self, fallback: usize) {
+        let i = self.focus.key().unwrap_or(fallback);
+        self.members[i].close_request();
+        self.settle_key();
+    }
+
     /// Window `i`'s frame in output points, whether it shows, and whether it has the keyboard
     /// (never while another app is active).
     fn state(&self, i: usize) -> ([f32; 4], bool, bool) {
@@ -439,6 +447,7 @@ pub(crate) fn run(windows: Vec<AnyWindowSpec>, selected: usize, args: Args, acce
                 Kind::Mark(_) => {}
                 Kind::Focus(focused) => desk.set_active(*focused),
                 Kind::Reopen => desk.reopen(accessory, &desktop, real_t),
+                Kind::Close => desk.close_request(selected),
                 Kind::Shortcut(shortcut) => fire(&desk, |m| m.shortcut(shortcut)).unwrap_or_else(|e| die(&format!("script shortcut: {e}"))),
                 Kind::Menu(item) => fire(&desk, |m| m.menu(item)).unwrap_or_else(|e| die(&format!("script menu: {e}"))),
                 Kind::PopupMenu(picked) => {

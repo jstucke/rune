@@ -340,6 +340,26 @@ impl<S: 'static> Host<S> {
         }
     }
 
+    /// The user asked to close the window (`WindowEvent::CloseRequested`): `App::on_close_request`
+    /// answers first, as an update, so a prompt it opens draws while the window stays.
+    pub(super) fn close_requested(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(f) = self.on_close_request.filter(|_| self.closes() && !event_loop.exiting()) else {
+            return self.close(event_loop);
+        };
+        let close = Arc::new(AtomicBool::new(false));
+        let answer = close.clone();
+        self.shared.queue_update(Box::new(move |s, tx| { answer.store(f(s, tx), Ordering::Relaxed); true }));
+        self.drain(event_loop, false);
+        self.publish();
+        // The handler may have closed or quit through its `Tx` already.
+        if !close.load(Ordering::Relaxed) || !self.closes() || event_loop.exiting() {
+            // Kept open: a later close may not be the last window's (`Windows::window_event`).
+            self.ends_app = false;
+            return;
+        }
+        self.close(event_loop);
+    }
+
     pub(super) fn close(&mut self, event_loop: &ActiveEventLoop) {
         self.rt.minimize_step(MinimizeEvent::Lost);
         if let Some(w) = &mut self.win {
