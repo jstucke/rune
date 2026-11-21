@@ -455,8 +455,8 @@ impl<S: 'static> App<S> {
     /// shown, and what the handler changed draws as an update's changes do, so it can ask
     /// "Save changes?" first. Closing later with `Tx::close_window` or `AppHandle::close`
     /// doesn't ask again, nor do `Tx::quit`, `AppHandle::quit` and macOS Quit. Rune's own
-    /// caption buttons and macOS standard menus close as `Tx::close_window` does. Native windows
-    /// and `--desktop` scripts (`{"close": true}`).
+    /// caption buttons and macOS standard menus close as `Tx::close_window` does. It runs for
+    /// native windows and in `--desktop` scripts, which ask with `{"close": true}`.
     pub fn on_close_request(mut self, f: fn(&mut S, &mut Tx) -> bool) -> Self {
         self.on_close_request = Some(f);
         self
