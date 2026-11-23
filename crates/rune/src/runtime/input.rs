@@ -10,6 +10,7 @@ pub(super) mod capture;
 pub(super) mod drop;
 pub(crate) mod field_menu;
 pub(super) mod file_dialog;
+pub(super) mod print;
 pub(super) mod focus;
 pub(super) mod focus_machine;
 pub(super) mod gesture;

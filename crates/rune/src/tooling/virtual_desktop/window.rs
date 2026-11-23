@@ -528,6 +528,7 @@ impl Member for Window {
             } else {
                 self.app.cancel_popups();
                 self.app.rt_mut().refuse_file_dialog("cannot open a file dialog while the window is hidden");
+                self.app.rt_mut().refuse_print("cannot print while the window is hidden");
             }
             if self.app.rt().shell_request.is_none() { break; }
         }

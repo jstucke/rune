@@ -336,6 +336,7 @@ impl FrameHost for WebFrameHost<'_> {
             }
         }
         self.r.app.rt_mut().refuse_file_dialog("native file dialogs are unsupported on web");
+        self.r.app.rt_mut().refuse_print("printing is unsupported on web");
         if !self.tick { self.r.sync_input(false); }
         let rt = self.r.app.rt();
         self.r.cursor.apply(self.window, rt.cursor(), rt.pointer().is_some());

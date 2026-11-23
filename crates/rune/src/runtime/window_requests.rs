@@ -52,6 +52,8 @@ pub(crate) struct HostState {
     /// File dialog callbacks, by id, until their answer runs.
     pub(in crate::runtime) file_dialog_answers: Vec<(u64, crate::file_dialog::AnswerFn)>,
     pub(in crate::runtime) next_file_dialog: u64,
+    /// The print step asked for (`Tx::prepare_print`, `Tx::print_pdf`), its callbacks and ids.
+    pub(in crate::runtime) print: crate::print::PrintState,
     /// `Tx::announce`'s last words, for the accessibility tree's live region.
     pub(crate) announcement: crate::a11y::Announcement,
     /// The accessibility tree, while an assistive client listens (`a11y/tree.rs`).
@@ -92,6 +94,7 @@ impl HostState {
             file_dialog: Default::default(),
             file_dialog_answers: Vec::new(),
             next_file_dialog: 0,
+            print: Default::default(),
             announcement: Default::default(),
             a11y: None,
             page: None,

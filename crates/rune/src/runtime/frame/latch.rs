@@ -117,6 +117,9 @@ impl RuntimeCore {
         for request in tx.file_dialogs.drain(..).filter_map(|call| call.take()) {
             self.request_file_dialog(request);
         }
+        for request in tx.prints.drain(..).filter_map(|call| call.take()) {
+            self.request_print(request);
+        }
         if let Some(mode) = tx.font_smoothing.take() { self.set_font_smoothing(mode); }
         if let Some((sans, mono)) = tx.font_families.take() { self.set_font_families(&sans, &mono); }
         if let Some(srgb) = tx.srgb_blend.take() { self.set_srgb_blend(srgb); }

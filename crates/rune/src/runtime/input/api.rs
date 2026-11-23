@@ -324,6 +324,17 @@ impl<S: 'static> Runtime<S> {
     pub(crate) fn file_dialog_json(&self) -> Option<serde_json::Value> { self.core().file_dialog_json() }
 
     #[inline(always)]
+    pub fn print_request(&self) -> Option<crate::print::PrintRequest<'_>> { self.core().print_request() }
+    #[inline(always)]
+    pub fn resolve_print_dialog(&mut self, prepared: crate::print::PrintPrepared) -> Result<(), crate::print::PrintError> {
+        self.core_mut().resolve_print_dialog(prepared)
+    }
+    #[inline(always)]
+    pub fn resolve_print_job(&mut self, sent: crate::print::PrintSent) -> Result<(), crate::print::PrintError> {
+        self.core_mut().resolve_print_job(sent)
+    }
+
+    #[inline(always)]
     pub fn text_selection(&self) -> Option<(&str, std::ops::Range<usize>)> { self.core().text_selection() }
     #[inline(always)]
     pub fn selected_text(&self) -> Option<String> {

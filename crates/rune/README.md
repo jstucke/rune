@@ -1673,6 +1673,44 @@ Or ask from a handler, with no executor or waker to wire up:
   or `{"type": "file-dialog-cancel"}` answers it. Tests read it with `Runtime::file_dialog()`
   and answer with `Runtime::resolve_file_dialog(Some(path))` or `(None)`.
 
+### Printing
+
+Ask for the desktop's print dialog from a handler, then send the PDF the reader asked for:
+
+```rust
+.on_press_tx(|s: &mut App, tx: &mut Tx| {
+    let options = PrintOptions { title: "Print".into(), settings: s.print_settings.clone(), ..Default::default() };
+    tx.prepare_print(options, |s: &mut App, prepared, tx| match prepared {
+        PrintPrepared::Ready(setup) => {
+            s.print_settings = setup.settings.without_pages();
+            let bytes = s.pdf_with(&setup.pages);           // the app cuts the pages
+            tx.print_pdf(PrintJob { title: "report.pdf".into(), setup, bytes }, |s: &mut App, sent, _| s.sent = Some(sent));
+        }
+        PrintPrepared::Cancelled => {}
+        PrintPrepared::NoService => s.error = Some("no print service".into()),
+        PrintPrepared::Unavailable(why) => s.error = Some(why),
+    });
+})
+```
+
+- On Linux this is the XDG desktop portal's Print interface: `PreparePrint` shows the dialog,
+  modal over the window (`x11:` its window id; on Wayland an xdg-foreign export of its
+  toplevel), and `PrintSetup` hands back its settings, page setup and the pages typed
+  (`PrintPages`, 0-based). `Print` then gets the bytes as a memory file, with the dialog's
+  token, so no second dialog shows. From portal version 3 Rune offers only PDF for Print to
+  File. Other platforms, overlays, embedded views and the web answer `Unavailable`.
+- The portal's backends hand the bytes to CUPS and apply copies, duplex, paper and the like,
+  but not the page range or scale: send only the pages the reader chose.
+- `PrintSent::Sent` means handed off; the portal reports no progress or completion.
+  `NotConfirmed` is any other answer, which KDE's backend gives even when the job went through.
+- One print step at a time, as with file dialogs; hiding or closing the window ends the dialog
+  as `Cancelled` and a job as `NotConfirmed`. A desktop without the portal or without a Print
+  backend (for example a bare wlroots session) answers `NoService`.
+- Headless runs keep the step open as `print` in `--tree` (`"step": "dialog"` or `"job"`).
+  Tests read it with `Runtime::print_request()` (`PrintRequest::Prepare(&options)` or
+  `PrintRequest::Send(&job)`) and answer with `Runtime::resolve_print_dialog(prepared)` and
+  `Runtime::resolve_print_job(sent)`; `PrintSetup::new(settings, page_setup)` builds a choice.
+
 ### Dragging out to other apps (`drag_out`)
 
 `.drag_out(..)` makes an element a system drag source: drag it into Finder, Mail or System

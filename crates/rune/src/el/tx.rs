@@ -88,6 +88,8 @@ pub struct Tx {
     pub(crate) trace: Option<TraceCalls>,
     pub(crate) popups: Vec<crate::popup_menu::Call>,
     pub(crate) file_dialogs: Vec<crate::file_dialog::Call>,
+    /// `Tx::prepare_print`, `Tx::print_pdf`.
+    pub(crate) prints: Vec<crate::print::Call>,
     pub(crate) window_frame: Option<crate::window::frame::FrameRequest>,
     /// The mouse button driving this press or drag (`Tx::button`).
     pub(crate) button: crate::PointerButton,

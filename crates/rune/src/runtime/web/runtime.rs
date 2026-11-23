@@ -103,7 +103,7 @@ impl RuntimeCore {
     fn web_needs_event(action: &Action) -> bool {
         matches!(action, Action::Press(..) | Action::DoublePress(_) | Action::MiddlePress(_) | Action::Link(..) | Action::LinkSecondary(..)
             | Action::SecondaryPress(..) | Action::Drag(..) | Action::DragRepeat(..) | Action::DragStart(_) | Action::DragEnd(..) | Action::Dismiss(_)
-            | Action::FieldMenu(..) | Action::Files(_) | Action::Paste(..) | Action::ClipboardRead(..) | Action::FileDialog(..) | Action::Key { .. }
+            | Action::FieldMenu(..) | Action::Files(_) | Action::Paste(..) | Action::ClipboardRead(..) | Action::FileDialog(..) | Action::Print(..) | Action::Key { .. }
             | Action::KeyUp(_) | Action::Physical(..) | Action::Focus(..) | Action::FocusControl(_) | Action::Blur)
     }
 
@@ -137,7 +137,7 @@ impl RuntimeCore {
         let tx = &self.frame.pending;
         if self.web_release_needs_frame() || self.kbd.focus_request.is_some() || tx.blur || tx.focus_to.is_some() || tx.select.is_some() || !tx.keys.is_empty()
             || tx.copy.is_some() || tx.paste || !tx.clipboard_reads.is_empty() || !tx.pick_reads.is_empty()
-            || !tx.open_urls.is_empty() || !tx.file_dialogs.is_empty() || !tx.popups.is_empty() || tx.clear_secret {
+            || !tx.open_urls.is_empty() || !tx.file_dialogs.is_empty() || !tx.prints.is_empty() || !tx.popups.is_empty() || tx.clear_secret {
             return None;
         }
         let access = self.focused_input()?.access.clone()?;

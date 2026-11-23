@@ -273,9 +273,11 @@ impl Tx {
 
 /// One window's native file dialog: shows what its runtime asks for, and queues the answer
 /// after `wake` brings the host back to poll it. The dialog's future owns copies of the
-/// options and the window's handle, never the app's state or the runtime.
+/// options and the window's handle, never the app's state or the runtime. It drives the
+/// window's print steps (`print::Presenter`) the same way, at the same moments.
 pub(crate) struct Presenter {
     showing: Option<(u64, Pin<Box<dyn Future<Output = FileDialogResult>>>)>,
+    print: crate::print::Presenter,
     #[cfg(all(feature = "native-file-dialog", target_os = "macos"))]
     sheet_parent: Option<objc2::rc::Retained<objc2_app_kit::NSWindow>>,
     wake: std::task::Waker,
@@ -291,14 +293,20 @@ impl Presenter {
     pub(crate) fn new(wake: Waker) -> Self {
         Self {
             showing: None,
+            print: crate::print::Presenter::new(),
             #[cfg(all(feature = "native-file-dialog", target_os = "macos"))]
             sheet_parent: None,
             wake: Arc::new(Wake(wake)).into(),
         }
     }
 
-    /// Queues the answer of a dialog that closed. True when one did.
+    /// Queues the answer of a dialog or print step that ended. True when one did.
     pub(crate) fn answer_core(&mut self, rt: &mut crate::runtime::RuntimeCore) -> bool {
+        let printed = self.print.answer_core(rt, &self.wake);
+        self.answer_file_dialog(rt) | printed
+    }
+
+    fn answer_file_dialog(&mut self, rt: &mut crate::runtime::RuntimeCore) -> bool {
         let Some((id, future)) = &mut self.showing else { return false };
         let Poll::Ready(result) = future.as_mut().poll(&mut Context::from_waker(&self.wake)) else { return false };
         let id = *id;
@@ -315,14 +323,16 @@ impl Presenter {
     /// blocks the event loop. A dialog asked for while the window is hidden waits for it to
     /// show. True when an answer was queued.
     pub(crate) fn open_core(&mut self, rt: &mut crate::runtime::RuntimeCore, window: Option<&winit::window::Window>) -> bool {
-        let Some(window) = window.filter(|_| self.showing.is_none()) else { return false };
-        let Some((id, kind, options)) = rt.take_file_dialog() else { return false };
+        let Some(window) = window else { return false };
+        let printed = self.print.open_core(rt, window, &self.wake);
+        if self.showing.is_some() { return printed; }
+        let Some((id, kind, options)) = rt.take_file_dialog() else { return printed };
         #[cfg(all(feature = "native-file-dialog", target_os = "macos"))]
         {
             self.sheet_parent = crate::platform::macos::ns_window(window);
         }
         self.showing = Some((id, show_over(kind, options, window)));
-        self.answer_core(rt)
+        self.answer_file_dialog(rt) | printed
     }
 
     /// The window is going away (hidden, closed or quitting): any attached sheet is ended and
@@ -334,6 +344,7 @@ impl Presenter {
 
     fn stop(&mut self) {
         self.showing = None;
+        self.print.stop();
         #[cfg(all(feature = "native-file-dialog", target_os = "macos"))]
         if let Some(window) = self.sheet_parent.take() {
             if let Some(sheet) = window.attachedSheet() {
