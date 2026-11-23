@@ -76,6 +76,8 @@ pub(in crate::runtime) enum Action {
     FileDialog(u64, crate::file_dialog::DialogOutcome),
     /// A `Tx::open_url_then` callback and what came of the open.
     UrlOpened(crate::open_url::OpenedFn, Result<(), crate::open_url::OpenUrlError>),
+    /// A `Tx::prepare_print` or `Tx::print_pdf` callback's id and the step's answer.
+    Print(u64, crate::print::PrintAnswer),
     Focus(String, f32, f32),
     /// A text field's menu: the field, the window point it opens at, and the window point where a
     /// press asked for it (none from the keyboard).
@@ -241,6 +243,7 @@ fn handler_name(action: &Action) -> &'static str {
         Action::CopyImageDone(..) => "a `copy_image_then` callback",
         Action::FileDialog(..) => "a file dialog callback",
         Action::UrlOpened(..) => "an `open_url_then` callback",
+        Action::Print(..) => "a print callback",
         _ => "a handler",
     })
 }
@@ -289,6 +292,7 @@ pub(crate) fn merge(tx: &mut Tx, one: Tx) {
         tx.popup_menu_resolution = one.popup_menu_resolution;
     }
     tx.file_dialogs.extend(one.file_dialogs);
+    tx.prints.extend(one.prints);
     if let Some(request) = one.window_frame { tx.window_frame = Some(tx.window_frame.unwrap_or_default().merge(request)); }
     if one.clear_secret && tx.copy.as_ref().is_some_and(crate::ClipboardWrite::is_secret) { tx.copy = None; }
     tx.clear_secret |= one.clear_secret;
@@ -686,6 +690,7 @@ impl RuntimeCore {
                 f(app.states(), result, &mut one);
                 true
             }
+            Action::Print(id, answer) => self.run_print(app, id, answer, &mut one),
             Action::Focus(path, x, y) => self.focus_input(app, path, x, y, &mut one),
             Action::FieldMenu(path, at, local) => self.field_menu(app, path, at, local, &mut one),
             Action::Blur => {

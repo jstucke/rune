@@ -463,6 +463,7 @@ impl Host {
         self.first_frame_ready(event_loop);
         if !self.win.as_ref().is_some_and(|w| self.life.shown() || w.first_frame.revealing()) {
             self.app.rt_mut().refuse_file_dialog("cannot open a file dialog while the window is hidden");
+            self.app.rt_mut().refuse_print("cannot print while the window is hidden");
         }
         self.hidden_input(event_loop);
         self.a11y_turn();

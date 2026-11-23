@@ -101,8 +101,18 @@ impl RuntimeCore {
 
     /// Answers the open or waiting dialog with `Ok(None)`, and runs any queued file dialog
     /// callbacks now while the window's state is still alive. A callback that asks for another
-    /// dialog is answered too, up to a bound against one that always asks again.
+    /// dialog is answered too, up to a bound against one that always asks again. Print steps
+    /// end with them (`cancel_prints`), as every host calls this when its window goes away,
+    /// including one a file dialog's callback starts, and the other way round.
     pub(crate) fn cancel_file_dialogs(&mut self, app: &mut dyn AppDriver) {
+        for _ in 0..64 {
+            self.cancel_prints(app);
+            self.cancel_only_file_dialogs(app);
+            if !self.host.print.step.is_open() && !self.frame.queue.iter().any(|a| matches!(a, Action::Print(..))) { return; }
+        }
+    }
+
+    fn cancel_only_file_dialogs(&mut self, app: &mut dyn AppDriver) {
         for _ in 0..64 {
             if let Some(d) = self.host.file_dialog.take() {
                 self.frame.queue.push(Action::FileDialog(d.id, Ok(DialogAnswer::Single(None))));

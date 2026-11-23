@@ -121,8 +121,12 @@ mod dbus {
     }
 
     /// Whether `e` indicates that the XDG desktop portal service or interface is absent or
-    /// failed D-Bus activation on this desktop.
+    /// failed D-Bus activation on this desktop: as an `fdo::Error`, or as the error reply a
+    /// method call gets (`MethodError`, read by its name).
     pub(crate) fn is_unavailable(e: &zbus::Error) -> bool {
+        if let zbus::Error::MethodError(..) = e {
+            return is_unavailable(&zbus::Error::FDO(Box::new(fdo::Error::from(e.clone()))));
+        }
         matches!(
             e,
             zbus::Error::FDO(fdo)

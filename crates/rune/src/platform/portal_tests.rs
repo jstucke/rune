@@ -53,3 +53,19 @@ fn registry_register_body_matches_portal_signature() {
     use zbus::zvariant::{Type, Value};
     assert_eq!(<(&str, HashMap<&str, Value<'_>>) as Type>::SIGNATURE.to_string(), "(sa{sv})");
 }
+
+/// A real error reply arrives as `MethodError`, named; a missing portal or interface is still
+/// unavailable then.
+#[cfg(all(target_os = "linux", feature = "dbus"))]
+#[test]
+fn an_error_reply_naming_a_missing_service_is_unavailable() {
+    use zbus::message::Message;
+    let reply = |name: &str| {
+        let call = Message::method_call("/org/freedesktop/portal/desktop", "PreparePrint").unwrap().build(&()).unwrap();
+        zbus::Error::from(Message::error(&call.header(), name).unwrap().build(&("detail",)).unwrap())
+    };
+    assert!(super::is_unavailable(&reply("org.freedesktop.DBus.Error.ServiceUnknown")));
+    assert!(super::is_unavailable(&reply("org.freedesktop.DBus.Error.UnknownMethod")));
+    assert!(!super::is_unavailable(&reply("org.freedesktop.DBus.Error.AccessDenied")));
+    assert!(!super::is_unavailable(&reply("org.freedesktop.portal.Error.NotAllowed")));
+}
