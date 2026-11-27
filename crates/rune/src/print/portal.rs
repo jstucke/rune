@@ -18,6 +18,11 @@ const INTERFACE: &str = "org.freedesktop.portal.Print";
 const RPC_TIMEOUT: Duration = Duration::from_secs(30);
 /// Reading the portal's `version` property.
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long `Print` waits, so it doesn't follow `PreparePrint`'s answer at once. GTK's backend
+/// (xdg-desktop-portal-gtk 1.15.1) given a `Print` 2 ms after that answer reads no file from its
+/// fd on the "Print to File" printer, writes nothing, and still answers success; 50 ms later
+/// it writes the file. Five times that, as it costs the reader nothing.
+const PRINT_AFTER_PREPARE: Duration = Duration::from_millis(250);
 
 /// The options for `PreparePrint` (`print_token` 0) or `Print`. Version 3 portals take
 /// `supported_output_file_formats`; only PDF, as the bytes are PDF (else GTK's Print to File
@@ -160,6 +165,7 @@ async fn ask_on(conn: &Connection, step: &Step, parent: &str, reply: &async_chan
             portal::request(conn, &proxy, &token, "PreparePrint", &body, timeouts(), reply.closed()).await
         }
         Step::Send(job) => {
+            until_closed(reply, async_io::Timer::after(PRINT_AFTER_PREPARE)).await?;
             let fd = match memfd(&job.bytes) {
                 Ok(fd) => fd,
                 Err(e) => return Some(step.refused(&format!("couldn't put the PDF in a memory file: {e}"))),
